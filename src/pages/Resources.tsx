@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { usePlanStore } from "@/store/planStore";
 import ResourceCard, { type ResourceItem } from "@/components/resources/ResourceCard";
 import { buildResourcesNarrative } from "@/lib/interpretation";
+import SectionAssistant from "@/components/SectionAssistant";
 
 const INSTITUTIONAL_PLACEHOLDERS = [
   {
@@ -320,6 +321,17 @@ export default function Resources() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Resources assistant ─────────────────────────────────── */}
+      {hasPlan && plan.results && (
+        <SectionAssistant
+          section="resources"
+          plan={plan}
+          results={plan.results}
+          label="Available Resources"
+          standalone
+        />
       )}
 
       {/* ── No-plan nudge ────────────────────────────────────────── */}

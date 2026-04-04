@@ -29,6 +29,7 @@ import {
   buildDebtNarrative,
 } from "@/lib/interpretation";
 import { cn } from "@/lib/utils";
+import SectionAssistant from "@/components/SectionAssistant";
 
 const PRIORITY_STYLES = {
   high: {
@@ -87,7 +88,7 @@ function AdvisorSummaryPanel({
 export default function Advisor() {
   const navigate = useNavigate();
   const { plan } = usePlanStore();
-  const { results, profile, goals, assumptions } = plan;
+  const { results, profile, goals, assumptions, assets } = plan;
 
   const scoreInfo = useMemo(
     () => (results ? getScoreLabel(results.financialHealthScore) : null),
@@ -103,10 +104,11 @@ export default function Advisor() {
         ? getCanadianInvestmentPriorityLadder(
             profile,
             selectedGoalTypes,
-            results.monthlySurplus
+            results.monthlySurplus,
+            assets.homeMarketValue
           )
         : [],
-    [profile, selectedGoalTypes, results]
+    [profile, selectedGoalTypes, results, assets.homeMarketValue]
   );
   const provincialNote = useMemo(
     () => getProvincialNote(profile.province),
@@ -275,6 +277,7 @@ export default function Advisor() {
               ? `After your current contributions, you have approximately ${fmt(results.freeCashAfterContributions)}/month in undeployed surplus that could be directed toward your highest-priority goal.`
               : "Focus on the recommendations below to strengthen each area of your financial health."}
           </p>
+          <SectionAssistant section="advisor" plan={plan} results={results} label="this summary" />
         </div>
 
         {/* ── Retirement ───────────────────────────────────────────────── */}
@@ -298,6 +301,7 @@ export default function Advisor() {
               )}
               <NarrativeRow icon={Info} text={retirementNarrative.timeframeNote} muted />
             </div>
+            <SectionAssistant section="retirement" plan={plan} results={results} label="Retirement" />
           </div>
         )}
 
@@ -325,6 +329,7 @@ export default function Advisor() {
                 <NarrativeRow icon={Zap} text={emergencyNarrative.actionStatement} accent="text-flow-interactive" />
               )}
             </div>
+            <SectionAssistant section="emergency" plan={plan} results={results} label="Emergency Reserve" />
           </div>
         )}
 

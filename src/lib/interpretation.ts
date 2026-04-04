@@ -194,7 +194,10 @@ export function buildDashboardBrief(
   const hasPayLessTax = selectedGoalTypes.includes("pay-less-tax") || selectedGoalTypes.includes("retire-enough");
 
   const fhsaUnused =
-    hasBuyHome && plan.assets.fhsaBalance === 0 && plan.assets.fhsaMonthlyContribution === 0;
+    hasBuyHome &&
+    plan.assets.homeMarketValue === 0 &&
+    plan.assets.fhsaBalance === 0 &&
+    plan.assets.fhsaMonthlyContribution === 0;
   const respUnused =
     hasEducation &&
     profile.numberOfChildren > 0 &&
@@ -648,9 +651,10 @@ export function buildInsightNarratives(
     });
   }
 
-  // 6. FHSA opportunity
+  // 6. FHSA opportunity — only for first-time buyers (no existing home)
   if (
     selectedGoalTypes.includes("buy-home") &&
+    plan.assets.homeMarketValue === 0 &&
     plan.assets.fhsaBalance === 0 &&
     plan.assets.fhsaMonthlyContribution === 0
   ) {
@@ -786,8 +790,9 @@ export function buildResourcesNarrative(
   const hasPayLessTax = selectedGoalTypes.includes("pay-less-tax");
   const hasChildren = profile.numberOfChildren > 0;
 
+  const alreadyOwnsHome = plan.assets.homeMarketValue > 0;
   const items: string[] = [];
-  if (hasBuyHome) items.push("home purchase programs (FHSA, FHBP, provincial grants)");
+  if (hasBuyHome && !alreadyOwnsHome) items.push("home purchase programs (FHSA, FHBP, provincial grants)");
   if (hasEducation) items.push(`education savings grants (CESG: ~${fmt(500 * profile.numberOfChildren)}/year)`);
   if (hasChildren) items.push("family benefit programs (CCB, childcare subsidies)");
   if (hasPayLessTax) items.push("tax reduction accounts (RRSP, TFSA)");
@@ -796,7 +801,7 @@ export function buildResourcesNarrative(
   }
 
   const topOpportunities: string[] = [];
-  if (hasBuyHome && plan.assets.fhsaBalance === 0) {
+  if (hasBuyHome && !alreadyOwnsHome && plan.assets.fhsaBalance === 0) {
     topOpportunities.push("FHSA: up to $8,000/year tax-deductible + tax-free for home purchase");
   }
   if (hasEducation && plan.assets.respBalance === 0) {

@@ -49,6 +49,7 @@ import {
 import { getScoreLabel } from "@/lib/scoring";
 import { cn } from "@/lib/utils";
 import type { FinancialPlan, CalculatedResults } from "@/types/financial";
+import SectionAssistant from "@/components/SectionAssistant";
 
 // ─── Resource data ────────────────────────────────────────────────────────
 
@@ -186,9 +187,10 @@ function computeGaps(plan: FinancialPlan, results: CalculatedResults): GapItem[]
   const gaps: GapItem[] = [];
   const expectedReturn = plan.assumptions.expectedAnnualReturn;
 
-  // 1. Missing FHSA — home is a goal but account not opened
+  // 1. Missing FHSA — home is a goal, user doesn't already own a home, account not opened
   const hasHomeGoal = plan.goals.some((g) => g.goalType === "buy-home" && g.selected);
-  if (hasHomeGoal && plan.assets.fhsaBalance === 0 && plan.assets.fhsaMonthlyContribution === 0) {
+  const alreadyOwnsHome = plan.assets.homeMarketValue > 0;
+  if (hasHomeGoal && !alreadyOwnsHome && plan.assets.fhsaBalance === 0 && plan.assets.fhsaMonthlyContribution === 0) {
     gaps.push({
       id: "missing-fhsa",
       severity: "high",
@@ -214,8 +216,10 @@ function computeGaps(plan: FinancialPlan, results: CalculatedResults): GapItem[]
       icon: Wallet,
       title: "Idle cash in chequing",
       impact: `$${idleAmount.toLocaleString()} earning near 0% — costing ~$${annualOpportunityCost}/year in lost returns`,
-      description: `Your chequing holds ${fmt(plan.assets.chequing)}. A typical working buffer is $1,500–$2,000. The extra ${fmt(idleAmount)} sits at ~0.05% interest while inflation erodes its value and your FHSA sits empty.`,
-      opportunity: `Moving ${fmt(Math.min(idleAmount, 8000))} directly to your FHSA counts as this year's contribution — an immediate tax deduction plus tax-free growth. Any remainder earns 4–5% in a HISA.`,
+      description: `Your chequing holds ${fmt(plan.assets.chequing)}. A typical working buffer is $1,500–$2,000. The extra ${fmt(idleAmount)} sits at ~0.05% interest while inflation erodes its value.`,
+      opportunity: hasHomeGoal && !alreadyOwnsHome
+        ? `Moving ${fmt(Math.min(idleAmount, 8000))} directly to your FHSA counts as this year's contribution — an immediate tax deduction plus tax-free growth. Any remainder earns 4–5% in a HISA.`
+        : `Moving ${fmt(idleAmount)} to a HISA or TFSA earns 4–5% immediately instead of near 0%.`,
       actionLabel: "Review allocation",
       actionRoute: "/app/plan",
     });
@@ -276,7 +280,9 @@ function computeGaps(plan: FinancialPlan, results: CalculatedResults): GapItem[]
       title: "Dining above household benchmark",
       impact: `$${plan.expenses.diningOut}/month — ${Math.round(diningRatio * 100)}% of net income (benchmark: 4–5%)`,
       description: `Your dining budget of $${plan.expenses.diningOut}/month is $${excess}/month above the 4–5% net income benchmark (~$${benchmark}/month). Over a year that's $${annualExcess.toLocaleString()} in excess lifestyle spending.`,
-      opportunity: `Redirecting $${excess}/month to your FHSA adds $${(excess * 12).toLocaleString()}/year toward your home goal, plus ~$${Math.round(excess * 12 * 0.28).toLocaleString()} in tax savings annually.`,
+      opportunity: hasHomeGoal && !alreadyOwnsHome
+        ? `Redirecting $${excess}/month to your FHSA adds $${(excess * 12).toLocaleString()}/year toward your home goal, plus ~$${Math.round(excess * 12 * 0.28).toLocaleString()} in tax savings annually.`
+        : `Redirecting $${excess}/month to investments adds $${(excess * 12).toLocaleString()}/year working toward your goals.`,
       actionLabel: "Adjust budget",
       actionRoute: "/app/plan",
     });
@@ -293,7 +299,7 @@ function getPickedResources(plan: FinancialPlan): DashboardResource[] {
   const hasHomeGoal = goals.includes("buy-home");
   const isOntario = plan.profile.province === "ON";
 
-  if (hasHomeGoal && plan.assets.fhsaBalance === 0) {
+  if (hasHomeGoal && !plan.assets.homeMarketValue && plan.assets.fhsaBalance === 0) {
     const r = CANADIAN_RESOURCES.find((r) => r.id === "fhsa");
     if (r) picked.push({
       ...r,
@@ -576,6 +582,9 @@ function SituationTab({
         </button>
       </div>
 
+      {/* ── Cash flow assistant ── */}
+      <SectionAssistant section="cashflow" plan={plan} results={results} label="Cash Flow" standalone />
+
       {/* ── Two-column detail layout ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Health score */}
@@ -618,6 +627,7 @@ function SituationTab({
               </div>
             ))}
           </div>
+          <SectionAssistant section="health" plan={plan} results={results} label="Financial Health" />
         </div>
 
         {/* Expenses breakdown */}
@@ -672,7 +682,7 @@ function SituationTab({
                 { label: "Cash & liquid", value: plan.assets.chequing + plan.assets.savings + plan.assets.emergencyFund },
                 { label: "TFSA", value: plan.assets.tfsaBalance },
                 { label: "RRSP", value: plan.assets.rrspBalance },
-                { label: "FHSA", value: plan.assets.fhsaBalance, warn: plan.assets.fhsaBalance === 0 },
+                { label: "FHSA", value: plan.assets.fhsaBalance, warn: plan.assets.fhsaBalance === 0 && plan.goals.some((g) => g.goalType === "buy-home" && g.selected) && plan.assets.homeMarketValue === 0 },
                 { label: "Non-registered", value: plan.assets.nonRegisteredInvestments },
               ].filter((a) => a.value > 0 || a.warn).map((a) => (
                 <div key={a.label} className="flex items-center justify-between">
@@ -710,6 +720,9 @@ function SituationTab({
           </div>
         </div>
       </div>
+
+      {/* ── Assets assistant ── */}
+      <SectionAssistant section="assets" plan={plan} results={results} label="Assets & Net Worth" standalone />
 
       {/* Edit plan CTA */}
       <div className="flex items-center justify-between glass rounded-xl px-5 py-4">
@@ -1034,6 +1047,7 @@ function PlanTab({
             </div>
           ))}
         </div>
+        <SectionAssistant section="retirement" plan={plan} results={results} label="Retirement" />
       </div>
 
       {/* ── Protection flags ── */}

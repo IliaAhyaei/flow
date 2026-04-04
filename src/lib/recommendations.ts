@@ -113,9 +113,10 @@ export function generateRecommendations(
   }
 
   // ── Rule 4: FHSA for home buyers ────────────────────────────────────────
+  // Requires: goal is buy-home, does NOT already own a home, age 18–71, no FHSA yet
   if (
     selectedGoalTypes.includes("buy-home") &&
-    isFHSAEligible(profile, selectedGoalTypes) &&
+    isFHSAEligible(profile, selectedGoalTypes, assets.homeMarketValue) &&
     assets.fhsaBalance === 0 &&
     assets.fhsaMonthlyContribution === 0
   ) {
@@ -154,10 +155,12 @@ export function generateRecommendations(
   }
 
   // ── Rule 6: RRSP for tax reduction ─────────────────────────────────────
+  // RRSP must be converted to RRIF by Dec 31 of year turning 71 — no new contributions after that.
   if (
     (selectedGoalTypes.includes("pay-less-tax") ||
       selectedGoalTypes.includes("retire-enough")) &&
     profile.annualGrossIncome > 60000 &&
+    profile.age < 71 &&
     assets.rrspMonthlyContribution < 200
   ) {
     const maxMonthly = Math.round(

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { buildFinancialContext, buildSystemPrompt } from "../lib/contextBuilder.js";
+import { buildFinancialContext, buildSystemPrompt, buildInterpretSystemPrompt } from "../lib/contextBuilder.js";
 
 const router = Router();
 const anthropic = new Anthropic({
@@ -10,7 +10,7 @@ const anthropic = new Anthropic({
 // ─── POST /api/advisor/chat ───────────────────────────────────────────────
 
 router.post("/chat", async (req: Request, res: Response) => {
-  const { message, plan, currentPage, history } = req.body;
+  const { message, plan, currentPage, history, mode } = req.body;
 
   if (!message?.trim()) {
     res.status(400).json({ error: "Message is required" });
@@ -19,7 +19,8 @@ router.post("/chat", async (req: Request, res: Response) => {
 
   // Build financial context from user's plan
   const context = buildFinancialContext(plan ?? {}, currentPage);
-  const systemPrompt = buildSystemPrompt();
+  // Interpret mode uses a constrained prompt — explanation only, no advice
+  const systemPrompt = mode === "interpret" ? buildInterpretSystemPrompt() : buildSystemPrompt();
 
   // Build message history for multi-turn conversation
   const messages: Anthropic.MessageParam[] = [];
@@ -51,7 +52,7 @@ router.post("/chat", async (req: Request, res: Response) => {
   try {
     const stream = anthropic.messages.stream({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: mode === "interpret" ? 256 : 1024,
       system: systemPrompt,
       messages,
     });

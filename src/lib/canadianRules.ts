@@ -58,12 +58,13 @@ const FHSA_LIFETIME_LIMIT = 40000;
 
 export function isFHSAEligible(
   profile: UserProfile,
-  selectedGoals: GoalType[]
+  selectedGoals: GoalType[],
+  homeMarketValue = 0
 ): boolean {
   const wantsBuyHome = selectedGoals.includes("buy-home");
-  // Basic eligibility: Canadian resident 18+, first-time buyer
-  // We approximate: if goal includes buy-home and no home in assets
-  return wantsBuyHome && profile.age >= 18 && profile.age <= 71;
+  // Disqualified if already owns a home (FHSA is first-time buyers only)
+  const alreadyOwnsHome = homeMarketValue > 0;
+  return wantsBuyHome && !alreadyOwnsHome && profile.age >= 18 && profile.age <= 71;
 }
 
 export function getFHSAAnnualLimit(): number {
@@ -205,7 +206,8 @@ export interface AccountPriority {
 export function getCanadianInvestmentPriorityLadder(
   profile: UserProfile,
   selectedGoals: GoalType[],
-  monthlySurplus: number
+  monthlySurplus: number,
+  homeMarketValue = 0
 ): AccountPriority[] {
   const ladder: AccountPriority[] = [];
   const monthly = Math.max(0, monthlySurplus);
@@ -217,8 +219,8 @@ export function getCanadianInvestmentPriorityLadder(
     monthlyTarget: null,
   });
 
-  // Step 2: FHSA if buying home
-  if (isFHSAEligible(profile, selectedGoals)) {
+  // Step 2: FHSA if buying home and does not already own a home
+  if (isFHSAEligible(profile, selectedGoals, homeMarketValue)) {
     ladder.push({
       account: "FHSA",
       reason: "Tax-deductible AND tax-free growth AND tax-free withdrawal for first home. Best account for first-time buyers.",

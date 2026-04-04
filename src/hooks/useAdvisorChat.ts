@@ -128,5 +128,17 @@ export function useAdvisorChat({ plan, currentPage = "" }: UseAdvisorChatOptions
     setError(null);
   }, []);
 
-  return { messages, isStreaming, error, sendMessage, stopStreaming, clearMessages };
+  // Inject a pre-built answer directly (no API call) — used for suggested prompts
+  const injectAnswer = useCallback((question: string, answer: string, suggestions?: string[]) => {
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: question };
+    const assistantMsg: ChatMessage = {
+      id: uid(),
+      role: "assistant",
+      content: answer,
+      suggestions,
+    };
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+  }, []);
+
+  return { messages, isStreaming, error, sendMessage, stopStreaming, clearMessages, injectAnswer };
 }

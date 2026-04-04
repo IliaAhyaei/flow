@@ -1,67 +1,88 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import { useLocation } from "react-router-dom";
-import { MessageSquare, X, Send, Square, Compass, Trash2, Loader2 } from "lucide-react";
+import { X, Send, Square, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { usePlanStore } from "@/store/planStore";
 import { useAdvisorChat } from "@/hooks/useAdvisorChat";
+import { getPrebuiltResponse } from "@/lib/floatingAdvisorAnswers";
 
 // ─── Context-aware suggested prompts ──────────────────────────────────────
+// Paths follow the /app/* routing schema defined in App.tsx.
+// Questions are tuned to the user's actual data context so answers are specific.
 
 function getSuggestedPrompts(pathname: string, hasPlan: boolean): string[] {
   if (!hasPlan) {
     return [
       "I'm new to Canada — where should I start financially?",
-      "What is a TFSA and why does it matter?",
-      "What accounts should I open first?",
-      "How much should I save each month?",
+      "What is a TFSA and how is it different from a regular savings account?",
+      "What's the difference between RRSP and TFSA, and which should I open first?",
+      "How much of my income should I realistically be saving each month?",
     ];
   }
-  if (pathname === "/" || pathname === "/dashboard") {
+
+  // Dashboard — questions grounded in the user's actual calculated results
+  if (pathname === "/app" || pathname === "/app/dashboard") {
     return [
-      "What does my financial health score mean?",
-      "Which recommendation should I act on first?",
-      "Am I on track for retirement?",
+      "What is my financial health score and what's holding it back the most?",
+      "Am I on track for retirement, and how big is my current gap?",
+      "I have surplus cash each month that isn't invested — what should I do with it?",
+      "Which of my accounts should I be contributing to more right now?",
     ];
   }
-  if (pathname.startsWith("/goals")) {
+
+  // Advisor page — tied to recommendations and analysis
+  if (pathname.startsWith("/app/advisor")) {
     return [
-      "How long will it take to save for a home?",
-      "What's a realistic retirement target for me?",
-      "How do I build an emergency fund?",
+      "Walk me through my top recommendation and the impact it would have.",
+      "Why is a spousal RRSP recommended for my situation specifically?",
+      "How much more should I be saving each month to close my retirement gap?",
+      "What does my contribution rate tell me about my retirement readiness?",
     ];
   }
-  if (pathname.startsWith("/advisor")) {
+
+  // Resources page — program eligibility and tax questions
+  if (pathname.startsWith("/app/resources")) {
     return [
-      "Explain my top recommendation in detail.",
-      "What's the FHSA and do I qualify?",
-      "How does CPP work for me?",
+      "Which registered accounts am I not using to their full potential?",
+      "Am I missing out on the CESG grant for my child's RESP?",
+      "How much tax does my RRSP contribution actually save me this year?",
+      "What Ontario government programs apply to my household right now?",
     ];
   }
-  if (pathname.startsWith("/scenarios")) {
+
+  // Scenario comparison
+  if (pathname.startsWith("/app/scenarios")) {
     return [
-      "What change would make the biggest difference?",
-      "How much better off will I be if I follow the plan?",
+      "What is the projected dollar difference between my current path and the recommended path?",
+      "What single change would have the biggest impact on my retirement outcome?",
+      "How much better off will I be in 10 years if I follow the recommendations?",
     ];
   }
-  if (pathname.startsWith("/resources")) {
+
+  // Goals page
+  if (pathname.startsWith("/app/goals")) {
     return [
-      "Which programs apply to me right now?",
-      "How do I apply for the FHSA?",
-      "What newcomer benefits can I access?",
+      "How long will it realistically take me to save for my top goal?",
+      "Am I on track for each of my financial goals given my current savings rate?",
+      "How do I build my emergency fund without affecting other goals?",
     ];
   }
-  if (pathname.startsWith("/insights")) {
+
+  // Insights
+  if (pathname.startsWith("/app/insights")) {
     return [
-      "Which insight should I act on this month?",
-      "Is my savings rate good enough?",
+      "Which insight should I act on this month for the biggest impact?",
+      "Is my savings rate strong enough for my retirement timeline?",
     ];
   }
+
+  // Generic fallback
   return [
-    "What should I focus on this month?",
-    "Explain my financial health score.",
-    "What Canadian programs can I access?",
+    "What should I focus on improving this month?",
+    "Explain my financial health score and what drives it.",
+    "Which Canadian programs and accounts am I eligible for?",
   ];
 }
 
@@ -133,7 +154,7 @@ export default function FloatingAdvisor() {
   const { plan } = usePlanStore();
   const hasPlan = plan.planCompleted;
 
-  const { messages, isStreaming, sendMessage, stopStreaming, clearMessages } =
+  const { messages, isStreaming, sendMessage, stopStreaming, clearMessages, injectAnswer } =
     useAdvisorChat({ plan: hasPlan ? plan : null, currentPage: location.pathname });
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -171,10 +192,19 @@ export default function FloatingAdvisor() {
     }
   };
 
-  const handleSuggestion = useCallback((text: string) => {
-    if (isStreaming) return;
-    sendMessage(text);
-  }, [isStreaming, sendMessage]);
+  const handleSuggestion = useCallback(
+    (text: string) => {
+      if (isStreaming) return;
+      const results = plan.results ?? null;
+      const prebuilt = getPrebuiltResponse(text, hasPlan ? plan : null, results);
+      if (prebuilt) {
+        injectAnswer(text, prebuilt.answer, prebuilt.suggestions);
+        return;
+      }
+      sendMessage(text);
+    },
+    [isStreaming, sendMessage, injectAnswer, plan, hasPlan]
+  );
 
   const showEmptyState = messages.length === 0;
 
@@ -193,15 +223,13 @@ export default function FloatingAdvisor() {
         className={cn(
           // Base layout
           "fixed z-50 flex flex-col glass-strong",
-          // Desktop: right-side panel, 400px wide, full screen height from bottom
+          // Desktop: right-side panel
           "sm:bottom-0 sm:right-0 sm:w-[400px] sm:rounded-tl-2xl sm:rounded-bl-none sm:rounded-tr-none sm:rounded-br-none sm:border-r-0 sm:border-b-0",
-          // Mobile: bottom sheet, full width
+          // Mobile: bottom sheet
           "bottom-0 right-0 w-full rounded-t-2xl sm:rounded-t-none",
           // Height
           "h-[85vh] sm:h-[min(620px,calc(100vh-3.5rem))]",
-          // Shadow
           "shadow-2xl",
-          // Transition
           "transition-transform duration-300 ease-in-out",
           open ? "translate-y-0" : "translate-y-full pointer-events-none"
         )}
@@ -209,8 +237,13 @@ export default function FloatingAdvisor() {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-flow flex items-center justify-center shadow-sm">
-              <Compass className="h-4 w-4 text-white" />
+            {/* Small avatar in header */}
+            <div className="h-8 w-8 rounded-full overflow-hidden bg-white/8 border border-white/10 shrink-0 flex items-center justify-center">
+              <img
+                src="/advisor-avatar.png"
+                alt="Flow Advisor"
+                className="w-full h-full object-cover object-top scale-150 -translate-y-1"
+              />
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground leading-tight">
@@ -249,10 +282,18 @@ export default function FloatingAdvisor() {
         {/* Message area */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {showEmptyState ? (
-            <div className="flex flex-col items-center justify-center h-full gap-5 pb-4">
-              <div className="h-14 w-14 rounded-2xl bg-flow/10 flex items-center justify-center">
-                <Compass className="h-7 w-7 text-flow" />
+            <div className="flex flex-col items-center justify-center h-full gap-4 pb-4">
+
+              {/* Flow logo */}
+              <div className="flex items-center justify-center">
+                <img
+                  src="/Flow Favicon.png"
+                  alt="Flow"
+                  className="h-16 w-16 object-contain"
+                  draggable={false}
+                />
               </div>
+
               <div className="text-center space-y-1.5">
                 <p className="text-sm font-semibold text-foreground">
                   {hasPlan ? "Ask about your finances" : "Your AI financial guide"}
@@ -325,7 +366,6 @@ export default function FloatingAdvisor() {
                 onClick={handleSend}
                 disabled={!input.trim()}
                 className="h-[42px] w-[42px] shrink-0 rounded-xl bg-flow hover:bg-flow-dark text-white disabled:opacity-40"
-
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -344,12 +384,17 @@ export default function FloatingAdvisor() {
         className={cn(
           "fixed bottom-6 right-6 z-50",
           "h-14 w-14 rounded-full bg-primary hover:bg-primary/90 text-white",
-          "flex items-center justify-center glow-primary-sm",
+          "flex items-center justify-center glow-primary-sm overflow-hidden",
           "transition-all duration-200 hover:scale-105 active:scale-95 hover:glow-primary",
           open && "opacity-0 pointer-events-none scale-90"
         )}
       >
-        <MessageSquare className="h-6 w-6" />
+        <img
+          src="/advisor-avatar.png"
+          alt="Open Flow Advisor"
+          className="w-full h-full object-cover object-top scale-150 -translate-y-1"
+          draggable={false}
+        />
       </button>
     </>
   );
