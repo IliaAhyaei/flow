@@ -148,25 +148,25 @@ export default function Landing() {
 
           {/* Right: 2 phone images — bare, no card */}
           <div className="flex justify-center lg:justify-end">
-            <div className="flex items-end justify-center gap-6 py-10">
-              {/* Left phone — rotate -8deg */}
+            <div className="flex items-end justify-center gap-2 py-10">
+              {/* Left phone — rotate -8deg, nudged right */}
               <img
                 src="/images/box1.png"
                 alt="Flow app screen"
                 className="w-[310px] lg:w-[380px] rounded-3xl block shrink-0"
                 style={{
-                  transform: "rotate(-8deg) translateY(14px)",
+                  transform: "rotate(-8deg) translateY(14px) translateX(32px)",
                   filter: "drop-shadow(0 32px 48px rgba(0,0,0,0.65))",
                 }}
               />
 
-              {/* Right phone — rotate +8deg */}
+              {/* Right phone — rotate +8deg, nudged left */}
               <img
                 src="/images/box2.png"
                 alt="Flow app screen"
                 className="w-[310px] lg:w-[380px] rounded-3xl block shrink-0"
                 style={{
-                  transform: "rotate(8deg) translateY(14px)",
+                  transform: "rotate(8deg) translateY(14px) translateX(-32px)",
                   filter: "drop-shadow(0 32px 48px rgba(0,0,0,0.65))",
                 }}
               />
